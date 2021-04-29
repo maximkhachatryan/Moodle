@@ -36,7 +36,7 @@ library(openxlsx)
 
 # Reading the Excel Files
 ```{r}
-mydir = c("D:/Celine 2020 January/3rd Semester/Data Mining/Project/files")
+mydir = c("./files")
 file_names = list.files(path=mydir, pattern="*.xlsx", full.names=TRUE)
 file_names
 ```
@@ -81,7 +81,7 @@ As we can see by the table above, all columns of all data files that are compare
 In this part, we have imported the first and second sheets of all excel files into two separate dataframes: one for all the data columns and the other one for grade and Moodle_userId.
 3 columns are also added to each of the datasets, course number, course type (Qualitative or Quantitative) and Course Level (Graduate or Undergraduate) which would be used for joining the two datasets into one single final dataframe.
 ```{r}
-mydir = c("D:/Celine 2020 January/3rd Semester/Data Mining/Project/files")
+mydir = c("./files")
 file_names = list.files(path=mydir, pattern="*.xlsx", full.names=TRUE)
 
 for(i in 1:length(file_names)){
