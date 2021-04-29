@@ -1,0 +1,19 @@
+Questions:
+1.What is the 0 row dataframes in the "Event Context" analysis.
+2.Why user-ids are so much more than Moodle_userIDs
+3.Why monday classes have so few attendences?
+
+
+
+
+
+
+
+
+
+
+
+
+
+TO DOs:
+Check to see if the only component name to connect to zoom is the one used.

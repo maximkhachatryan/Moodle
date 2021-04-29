@@ -1,0 +1,101 @@
+---
+title: "Zoom_analysis"
+author: "Celine"
+date: "April 29, 2021"
+output: pdf_document
+---
+
+# Data Restructure
+
+```{r}
+joined_data_zoom <- joined_data[joined_data$`Event context` =="URL: Zoom link",]
+zoom_grouped <- joined_data %>% group_by(userid) %>% mutate(zoom=as.numeric(n()))
+```
+
+number of zoom attendances during the semester: `r nrow(joined_data_zoom)`
+
+# Visualization 
+
+```{r, fig.height=7,fig.width=7}
+joined_data_zoom %>% group_by(month)%>% summarize(count=n())%>% 
+  ggplot(aes(x=month, y=count)) + geom_bar(stat="identity", fill = "#b83b5e", color = "#7b113a", size = 2)+ 
+  geom_text(aes(label=count), vjust=-1)+
+  labs(x= "Month", y = "Zoom meetings", title = "Count of Clicking Zoom Meetings by Month") +theme_economist()+ theme(plot.background = element_rect(fill = "#eeecda",
+color="#cccc99", size=2, linetype = "solid"), plot.title = element_text(vjust = 4, hjust =0.5))
+```
+
+The plot shows the frequency of joining Zoom meeting by months. The full academic months are September, October and November, so we can see that in September the class attendance was significantly higher than in October & November, which might have been affected by Artsakh war. Visualization of attendance may help to build the syllabus, for e.g. to teach the hardest topics and provide key assignments during the most active months.
+
+#### Count of Clicking Zoom Meetings by Weeks
+
+
+
+
+```{r}
+joined_data_zoom %>% group_by(weekday, month)%>% summarize(count=n())%>% 
+  ggplot(aes(x=weekday, y=count, fill=weekday)) + 
+  geom_bar(stat="identity")+
+  geom_text(aes(label=count), vjust=-1)+
+  labs(x= "Month", y = "Zoom meetings", title = "Count of Clicking Zoom Meetings by Weeks")+
+  ylim(0,1300)+
+  facet_wrap(~month)+ 
+  theme(panel.background = element_rect(fill = "#eeecda",colour = "#cccc99",size = 0.5, linetype = "solid"),
+  panel.grid.major = element_line(size = 0.5, linetype = 'solid',colour = "white"), 
+  panel.grid.minor = element_line(size = 0.25, linetype = 'solid',colour = "white"),
+  strip.background =element_rect(fill="#b83b5e" , color = "#7b113a"))
+  
+```
+
+According to the frequency of Zoom meetings by weeks, our data belong to courses held on Tuesdays and Thursdays, and the attendances on other days most probably belong to office hours and the ones on the Saturday of the last month, probably is because of an exam.
+
+
+#### Analyzing the Effect of War on Class Attendance
+
+```{r}
+data_war <- joined_data_zoom[joined_data_zoom$date<="2020/12/8",] # Dec 8 was last day of classes
+data_classes <- joined_data_zoom[joined_data_zoom$weekday=="Tue"|joined_data_zoom$weekday=="Thu",]
+```
+
+
+```{r}
+data_classes %>% group_by(date)%>% summarize(count=n())%>% ggplot(aes(date,count)) +
+  geom_line(size=0.8, color = "#b83b5e")+ labs(x="Date", y="Count", title="The Effect of Artsakh War on Class Attendance")+ 
+  geom_vline(xintercept  = as.numeric(as.POSIXct("2020-09-28 +04")), linetype= 5, color= "red")+theme_economist()+ theme(plot.background = element_rect(fill = "#eeecda",
+color="#cccc99", size=2, linetype = "solid"), plot.title = element_text(vjust = 3, hjust =0.5))
+```
+
+The plot above contains only the dates of the classes (as investigated by weekly zoom participation). After war erupted (September 28) Zoom attendance has drastically fallen with exception of a day in October and another in November, which might have been exam days.
+
+
+
+#### Analyzing Attendance of Each User
+
+```{r, fig.width=10}
+joined_data_zoom %>% group_by(userid) %>% summarise(count=n()) %>% 
+  ggplot(aes(x=userid, y=count)) + 
+  geom_bar(stat="identity", color = "#7b113a", fill = "#b83b5e") +labs(x= "User ID", y = "Count of clicking Zoom meetings ", title = "Attendance to Classes of Each User",vjust=-1)+theme_economist()+ theme(plot.background = element_rect(fill = "#eeecda",
+color="#cccc99", size=2, linetype = "solid"), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 7), plot.title = element_text(vjust = 3, hjust =0.5))
+```
+
+The plot above allows to measure class Attendance of each user and identify the users who are missing more classes.
+
+
+
+
+#### number of zoom attendance vs Grade
+
+
+```{r}
+ggplot(zoom_grouped, aes(x=round(as.numeric(Grades),2), y=zoom)) + 
+  geom_point(alpha=0.2, color = "#b83b5e")+
+  geom_smooth(se = FALSE, method = "lm", color = "#1597bb")+ylim(0,3500)+
+  ylab("Attendance of Zoom meetings")+theme_economist(
+  base_size = 10,
+  base_family = "sans",
+  horizontal = TRUE,
+  dkpanel = FALSE
+)+labs(x= "Grades", y = "Count of clicking Zoom meetings ", title = "Attendance vs Grades",vjust=-1)+
+  theme_economist()+ theme(plot.background = element_rect(fill = "#eeecda",
+color="#cccc99", size=2, linetype = "solid"), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 7), plot.title = element_text(vjust = 3, hjust =0.5))
+```
+
