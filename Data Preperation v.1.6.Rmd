@@ -1,0 +1,271 @@
+---
+title: "Data Preperatioin"
+author: "Celine"
+date: "April 28, 2021"
+output: pdf_document
+---
+
+# libraries
+```{r setup, include=FALSE}
+
+library(lubridate)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(readxl)
+library(stringr)
+library(ggplot2)
+library(caret)
+library(rpart)
+library(Metrics)
+library(randomForest)
+library(chron)
+library(compare)
+
+
+library(ggthemes)
+library(readr)
+library("readxl")
+options(scipen=999)
+#library(xlsx)
+library(openxlsx)
+
+```
+
+
+# Reading the Excel Files
+```{r}
+mydir = c("D:/Celine 2020 January/3rd Semester/Data Mining/Project/files")
+file_names = list.files(path=mydir, pattern="*.xlsx", full.names=TRUE)
+file_names
+```
+
+## Analysing The Structure and Dissimilarity of Data Files
+In the code chunk below, we have performed an analysis, to extract the column names of our different data excel files, make a data frame containing the files header names and then compare them two by two to see if any difference exist between the data files. If the structure of the files are the same among the files, we can then merge them all into one single data frame.
+
+```{r}
+## allocate memory for our list
+out <- vector("list", length(file_names)) 
+out <- data.frame()
+## read the files and assign them to the list
+for(i in seq_along(file_names)) {
+  out1 <- read_excel(file_names[i] , n_max = 1, col_names = FALSE)
+  out <- plyr::rbind.fill(out,out1)
+  
+}
+
+# Generate all combinations for comparisons
+compar <- apply(combn(rownames(out),2),2,paste0)
+
+# Create a temporary list having pairs of rows
+myList <- apply(compar, 2, function(r) out[r,])
+names(myList) <- apply(combn(rownames(out),2),2,paste0,collapse="_")
+
+
+# Compare the two rows for each element in the list
+results <- t(sapply(myList, function(x) as.numeric(tolower(gsub(" ", "", x[1,], fixed = TRUE)) == tolower(gsub(" ", "", x[2,], fixed = TRUE)))))
+colnames(results) <- colnames(out)
+as.data.frame(results)
+```
+Automatically checking if there is any 0 value in the table above indicating difference in the structure of data files.
+```{r}
+c(0) %in% results
+```
+
+As we can see by the table above, all columns of all data files that are compared two by two, are the same, meaning we can combine all files in one data frame.  
+
+
+## combining all files in one data frame
+
+In this part, we have imported the first and second sheets of all excel files into two separate dataframes: one for all the data columns and the other one for grade and Moodle_userId.
+3 columns are also added to each of the datasets, course number, course type (Qualitative or Quantitative) and Course Level (Graduate or Undergraduate) which would be used for joining the two datasets into one single final dataframe.
+```{r}
+mydir = c("D:/Celine 2020 January/3rd Semester/Data Mining/Project/files")
+file_names = list.files(path=mydir, pattern="*.xlsx", full.names=TRUE)
+
+for(i in 1:length(file_names)){
+  Course_Number <- substr(file_names[i],regexpr("/Course",file_names[i]) + 7,regexpr("/Course",file_names[i]) + 7)
+Course_level <- ifelse(substr(file_names[i],regexpr("/Course",file_names[i]) + 9,regexpr("/Course",file_names[i]) + 13) == "Under", "Und", "Grad")
+Course_type <-ifelse(substr(file_names[i],regexpr("Q",file_names[i]) + 3,regexpr("Q",file_names[i]) + 3) == "l", "Quantitative", "Qualitative")
+  
+  
+  tmp_dat <- openxlsx::read.xlsx(file_names[i], sheet=1,na.strings = "NULL") 
+  tmp_grade <- openxlsx::read.xlsx(file_names[i], sheet=2,na.strings = "NULL")
+  
+  CN <- rep(Course_Number, nrow(tmp_dat))
+  CN2 <- rep(Course_Number, nrow(tmp_grade))
+  CL <- rep(Course_level, nrow(tmp_dat))
+  CL2 <- rep(Course_level, nrow(tmp_grade))
+  CT <- rep(Course_type, nrow(tmp_dat))
+  CT2 <- rep(Course_type, nrow(tmp_grade))
+  
+  tmp_dat <- mutate(tmp_dat, Course_Number = CN, Course_Type = CT, Cours_Level = CL)
+  tmp_grade <- mutate(tmp_grade, Course_Number = CN2, Course_Type = CT2, Cours_Level = CL2)
+  
+  
+  
+  if (i==1)
+  { datasets<-tmp_dat
+    grades <- tmp_grade
+  } else {
+      
+      datasets<-rbind(datasets,tmp_dat)
+      colnames(tmp_grade) <- colnames(grades)
+   grades <- rbind(grades,tmp_grade)  
+  }
+  
+}
+```
+
+
+
+#Data Restructuring
+
+In this part, The column Time is spitted into 4 columns: date, time, weekday and month. User Id is extracted from the description column and the final dataframe is constructed by the name: joined_data.
+```{r}
+data <- datasets
+data$`Event context` <- as.factor(data$`Event.context.(Identifiable.Names/Information.changed)`)
+data$`Component` <- as.factor(data$`Component`)
+data$`Event name` <- as.factor(data$Event.name)
+data$`Description` <- as.factor(data$`Description.(Identifiable.Names/Information.changed)`)
+data$`Origin` <- as.factor(data$`Origin`)
+
+data$times <- substr(as.character(data$Time),11,15)
+data$times <- chron(times=paste(data$times, ":00", sep = ""))
+data$date <- substr(as.character(data$Time),1,regexpr(",",as.character(data$Time))-1)
+data$date <- as.POSIXct(data$date,format = "%d/%m/%y")
+data$month <- as.factor(month(data$date))
+data$weekday <- as.factor(lubridate::wday(data$date, label = TRUE))
+
+data$userid <-  parse_number(datasets$`Description.(Identifiable.Names/Information.changed)`)
+no_id_rows <- problems(data$userid)
+data$userid <- as.factor(data$userid)
+
+
+grades$userid <- as.factor(grades$Moodle_UserID)
+joined_data <- left_join(data, grades, by = c("userid","Course_Number", "Course_Type",   "Cours_Level"))
+joined_data$Grades <- as.numeric(joined_data$Grades)
+```
+
+The original dataset contains observations with description values that the user id was not specified, so the rows that are not clear to which user belong have the NA value in the resulting dataframe and belong to the following rows and have the following values in the table below.
+```{r}
+unique(no_id_rows$actual)
+```
+
+
+## Handling NA values
+** Checking the NA values in the dataset
+The number of NA values in each column:
+
+```{r}
+Na_nums <- as.data.frame(colSums(is.na(joined_data)))
+Na_nums
+```
+
+The percentage of NA values in each column to see how much data will be lost if the NA values are omitted.
+```{r}
+NA_perc <- as.data.frame(colMeans(is.na(joined_data)))
+NA_perc
+```
+
+
+Our Analysis is mostly based on the users' performance and activities, so the observations not having the information about the user are almost of no use, then they will be omitted from the data set. As it is shown in the table below, the observations having this characteristic only consist a very small portion of the total observations, hence probably omitting them would not have catastrophic consequences on our analysis.
+```{r}
+joined_data <- na.omit(joined_data)
+```
+
+
+```{r}
+Na_nums <- as.data.frame(colSums(is.na(joined_data)))
+Na_nums
+```
+
+As we have manipulated our initial dataset structure, we will compare their to check if they really are duplicated columns, so we can delete them.
+Comparing to see if any data is lost and if the columns are duplicate
+```{r}
+compare(joined_data$`Event.context.(Identifiable.Names/Information.changed)`, joined_data$`Event context`, ignoreNames = TRUE, coerce = TRUE)
+
+compare(joined_data$`Description.(Identifiable.Names/Information.changed)`, joined_data$Description, ignoreNames = TRUE, coerce = TRUE)
+
+compare(joined_data$userid, joined_data$Moodle_UserID, ignoreNames = TRUE, coerce = TRUE)
+
+compare(joined_data$Event.name, joined_data$`Event name`, ignoreNames = TRUE, coerce = TRUE)
+```
+
+Bye the result of the code above, we see that we can drop the "Event.context.(Identifiable.Names/Information.changed)" and "Description.(Identifiable.Names/Information.changed)" columns.
+And as we have already splitted the Time column into other columns, we will drop it as well.
+
+
+```{r}
+drop <- c("Event.context.(Identifiable.Names/Information.changed)","Description.(Identifiable.Names/Information.changed)", "Time", "Event.name")
+joined_data  = joined_data[,!(names(data) %in% drop)]
+joined_data  = joined_data[,!(names(joined_data) %in% drop)]
+colnames(joined_data)
+```
+
+# Exploration of the Data in the dataset
+
+## Analyzed by the column "Event Name"
+
+```{r}
+joined_data$`Event name` <- as.factor(joined_data$`Event name`)
+```
+
+
+
+```{r}
+component_values <- unique(joined_data$Component)
+#Some Better implementation found later
+for(i in component_values ){
+     b <- joined_data[with(joined_data, Component == i),]
+     info <- as.data.frame(table(b$`Event name`))
+     info$Component <- rep(i,nrow(info))
+     colnames(info) <- c("Event Name", "Count", "Component")
+     print(info[info$Count > 0,])
+}
+
+```
+
+
+## Analyzing the Column "Event Context" group by "Component"
+```{r}
+component_values <- unique(data$Component)
+rows.print=20
+
+for(i in component_values ){
+     b <- joined_data[with(joined_data, Component == i),]
+     info <- as.data.frame(table(b$`Event context`))
+     info$Component <- rep(i,nrow(info))
+     colnames(info) <- c("Event Context", "Count", "Component")
+     print(info[info$Count > 0,])
+}
+
+
+```
+
+By going through the data and their count by the two columns "Component", the Most important Component types and their important values to be anaylzed are extracted as follows:
+
+* Assignment
+    * A submission has been submitted
+    * Feedback viewed
+    * Grading form viewed
+    * Grading table viewed
+* Quiz
+* File submissions
+* URL
+* File
+
+
+# visualization
+
+as apposed to what students feel
+
+```{r fig.width=17}
+joined_data %>% group_by(date) %>% summarize(Frequency = n()) %>%
+ggplot(aes(x = date, y = Frequency)) +geom_bar(stat="identity", color = "#7b113a", fill = "#b83b5e") +labs(x= "Date", y = "Number of Activities", title = "Distribution of Moodle Activites across the Semester",vjust=-1)+theme_economist()+ theme(plot.background = element_rect(fill = "#eeecda",
+color="#cccc99", size=2, linetype = "solid"), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 7), plot.title = element_text(vjust = 3, hjust =0.5))
+```
+
+
+
