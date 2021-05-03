@@ -7,7 +7,6 @@ output: pdf_document
 
 # libraries
 ```{r setup, include=FALSE}
-#lkfdlkglfdkgmlk
 library(lubridate)
 library(plyr)
 library(dplyr)
@@ -22,7 +21,11 @@ library(Metrics)
 library(randomForest)
 library(chron)
 library(compare)
-
+library(broom)
+library(ROCR)
+library(rattle)
+library(rpart.plot)
+library(class)
 
 library(ggthemes)
 library(readr)
@@ -83,6 +86,7 @@ In this part, we have imported the first and second sheets of all excel files in
 ```{r}
 mydir = c("./files")
 file_names = list.files(path=mydir, pattern="*.xlsx", full.names=TRUE)
+students_count = 0
 
 for(i in 1:length(file_names)){
   Course_Number <- substr(file_names[i],regexpr("/Course",file_names[i]) + 7,regexpr("/Course",file_names[i]) + 7)
@@ -92,6 +96,8 @@ Course_type <-ifelse(substr(file_names[i],regexpr("Q",file_names[i]) + 3,regexpr
   
   tmp_dat <- openxlsx::read.xlsx(file_names[i], sheet=1,na.strings = "NULL") 
   tmp_grade <- openxlsx::read.xlsx(file_names[i], sheet=2,na.strings = "NULL")
+  students_count = students_count + nrow(tmp_grade)
+  
   
   CN <- rep(Course_Number, nrow(tmp_dat))
   CN2 <- rep(Course_Number, nrow(tmp_grade))
@@ -117,6 +123,12 @@ Course_type <-ifelse(substr(file_names[i],regexpr("Q",file_names[i]) + 3,regexpr
   
 }
 ```
+
+the number of students is: `r tmp_grade`
+```{r}
+length(unique(grades$Moodle_UserID))
+```
+
 
 
 
@@ -148,9 +160,34 @@ joined_data <- left_join(data, grades, by = c("userid","Course_Number", "Course_
 joined_data$Grades <- as.numeric(joined_data$Grades)
 ```
 
+Checking to see how many user ids with grade are in the dataframe.
+```{r}
+check <- lapply(as.list(grades$Moodle_UserID %in% joined_data$Moodle_UserID), as.numeric) 
+back <- rowMeans(as.data.frame(check))
+```
+ the number `r rowMeans(as.data.frame(check))` indicates that the almost all students' records are in the dataframe.
+
+
+
+the number of students is: `r tmp_grade`
+```{r}
+colnames(grades)
+colnames(datasets)
+colnames(joined_data)
+length(unique(grades$Moodle_UserID))
+length(unique(data$userid))
+
+length(unique(joined_data$userid))
+length(unique(grades$Moodle_UserID))
+
+length(unique(joined_data$userid))
+length(unique(joined_data$Moodle_UserID))
+```
+
 The original dataset contains observations with description values that the user id was not specified, so the rows that are not clear to which user belong have the NA value in the resulting dataframe and belong to the following rows and have the following values in the table below.
 ```{r}
 unique(no_id_rows$actual)
+nrow(no_id_rows)
 ```
 
 
@@ -158,10 +195,14 @@ unique(no_id_rows$actual)
 ** Checking the NA values in the dataset
 The number of NA values in each column:
 
+
 ```{r}
 Na_nums <- as.data.frame(colSums(is.na(joined_data)))
 Na_nums
 ```
+The number of observations with 
+
+
 
 The percentage of NA values in each column to see how much data will be lost if the NA values are omitted.
 ```{r}
@@ -172,14 +213,51 @@ NA_perc
 
 Our Analysis is mostly based on the users' performance and activities, so the observations not having the information about the user are almost of no use, then they will be omitted from the data set. As it is shown in the table below, the observations having this characteristic only consist a very small portion of the total observations, hence probably omitting them would not have catastrophic consequences on our analysis.
 ```{r}
+full_joined_data <- joined_data
 joined_data <- na.omit(joined_data)
 ```
 
 
+Checking to see how many user ids with grade have been kept in the dataframe after NA values are omitted.
 ```{r}
-Na_nums <- as.data.frame(colSums(is.na(joined_data)))
-Na_nums
+check <- lapply(as.list(grades$Moodle_UserID %in% joined_data$Moodle_UserID), as.numeric) 
+then <- rowMeans(as.data.frame(check))
 ```
+The number `r rowMeans(as.data.frame(check))`, as is almost equal to 1, indicates that the observation deleted, belonged to users that were not students and belonged to other types of users(instructor,TA,...)
+
+We can see that `r (back - then) * 100` percent of the students records has been deleted as they had no Grade value.
+The other ommited observations are the one that had no userId value or did not belong to student users.
+
+As we may need the data of other type users(instructors, TAs,...) we will make sure to have a copy of the original dataframe, before omitting any observations.
+so our main dataframes are as follows:
+**full_joined_data: ** all users observations.
+**joined_data: **Observations that only belong to studens
+
+
+<!-- the chunk of code below approves our claim: -->
+<!-- That the remaining  -->
+<!-- ```{r} -->
+<!-- length(unique(grades$Moodle_UserID)) -->
+<!-- length(unique(grades$Moodle_UserID)) * (1 - (back - then)) -->
+<!-- sum(as.numeric(is.na(grades$Grades)))  -->
+<!-- length(unique(joined_data$userid)) -->
+
+
+<!-- ``` -->
+
+
+
+
+
+Counting how many students and users Records is lost.
+As we see by the result of the code chunk below, we have omitted all records that did not belong to Students' activity.
+```{r}
+length(unique(joined_data$userid))
+length(unique(joined_data$Moodle_UserID))
+```
+
+
+
 
 As we have manipulated our initial dataset structure, we will compare their to check if they really are duplicated columns, so we can delete them.
 Comparing to see if any data is lost and if the columns are duplicate
@@ -199,10 +277,11 @@ And as we have already splitted the Time column into other columns, we will drop
 
 ```{r}
 drop <- c("Event.context.(Identifiable.Names/Information.changed)","Description.(Identifiable.Names/Information.changed)", "Time", "Event.name")
-joined_data  = joined_data[,!(names(data) %in% drop)]
+#joined_data  = joined_data[,!(names(data) %in% drop)]
 joined_data  = joined_data[,!(names(joined_data) %in% drop)]
 colnames(joined_data)
 ```
+
 
 # Exploration of the Data in the dataset
 
@@ -243,6 +322,7 @@ for(i in component_values ){
 
 
 ```
+## Columns Values Analysis results
 
 By going through the data and their count by the two columns "Component", the Most important Component types and their important values to be anaylzed are extracted as follows:
 
@@ -254,8 +334,16 @@ By going through the data and their count by the two columns "Component", the Mo
 * Quiz
 * File submissions
 * URL
+    *Zoom attendance
 * File
 
+In the code chunk below, we add another column as the status of Pass/Fail based on a minimum required grade of passing: 2.6
+```{r}
+joined_data <- joined_data %>% 
+  mutate(Status = if_else(Grades >= 2.6, "Pass", "Fail"))
+ 
+joined_data$Status <- as.factor(joined_data$Status)
+```
 
 # visualization
 
@@ -269,3 +357,24 @@ color="#cccc99", size=2, linetype = "solid"), axis.text.x = element_text(angle =
 
 
 
+```{r}
+act_by_date <- joined_data %>% group_by(date) %>% summarize(Frequency = n())
+
+act_by_date_ordered <-act_by_date[order(act_by_date$Frequency, decreasing = T),]
+
+date1 <- act_by_date_ordered[1,1]
+date2 <- act_by_date_ordered[2,1]
+date3 <- act_by_date_ordered[3,1]
+
+acts_in_date <-
+act_by_date_ordered <-act_by_date[order(act_by_date$Frequency),]
+
+first <- joined_data[joined_data$date == date1,] %>% group_by(Course_Number, Cours_Level) %>% summarize(Count = n())
+second <- joined_data[joined_data$date == date2,] %>% group_by(Course_Number, Cours_Level) %>% summarize(Count = n())
+third <- joined_data[joined_data$date == date3,] %>% group_by(Course_Number, Cours_Level) %>% summarize(Count = n())
+
+first
+second
+third
+
+```

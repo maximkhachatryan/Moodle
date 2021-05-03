@@ -1,0 +1,215 @@
+---
+title: "Quiz - analysis"
+author: "Celine"
+date: "April 30, 2021"
+output: pdf_document
+---
+#Data Preperation
+
+```{r}
+joined_data_quiz <- joined_data[joined_data$Component =="Quiz",]
+quiz_data <- joined_data[joined_data$`Event name`=="Quiz attempt submitted",] %>% group_by(userid) %>% mutate(quizzes_by_user=n())
+```
+
+```{r}
+temp <- joined_data_quiz[joined_data_quiz$`Event name` == "Quiz attempt summary viewed",]
+```
+
+```{r}
+temp <- subset(joined_data, Course_Number = 1, Course_type = "Quantitative", Course_level = "Und" ) 
+```
+```{r}
+temp2 <- temp[,c(3,4,5,12)]
+```
+
+```{r}
+temp3 <- unique(temp2)
+nrow(temp3)
+```
+
+
+
+```{r}
+ unique(temp)
+```
+
+
+```{r}
+# library("writexl")
+# write_xlsx(joined_data[1:(nrow(joined_data)/2),],".\\joined_data.xlsx")
+# write_xlsx(joined_data[(nrow(joined_data)/2):nrow(joined_data),],".\\joined_datap2.xlsx")
+```
+
+
+
+# Visualization 
+** Comparison activities for quizzes **
+
+```{r, fig.width=17, fig.height= 15}
+
+
+ggplot(joined_data_quiz, aes(x=`Event context`))+geom_bar(fill = "#b83b5e", color = "#7b113a", size = 1)+
+  theme_classic(base_size = 10) + theme(axis.text.x=element_text(angle = 90, hjust = 0))+
+  facet_wrap(~`Event name`, scales = "free")+
+  labs(title="Comparison activities for quizzes", x="")+ 
+  theme(panel.background = element_rect(fill = "#eeecda",colour = "#cccc99",size = 0.5, linetype = "solid"),
+  panel.grid.major = element_line(size = 0.5, linetype = 'solid',colour = "white"), 
+  panel.grid.minor = element_line(size = 0.25, linetype = 'solid',colour = "white"),
+  strip.background =element_rect(fill="#b83b5e" , color = "#7b113a"))
+```
+```{r}
+a <- data.frame(quiz_data$Course_Number,quiz_data$Course_Type, quiz_data$Cours_Level,)
+unique(quiz_data$Course_Number, quiz_data$Cours_Level)
+```
+```{r}
+b <- joined_data_quiz %>% group_by(`Event name`)%>% summarize(count=n())
+```
+
+
+```{r}
+joined_data_quiz %>% group_by(`Course_Number`,`Cours_Level`,`Course_Type`,`userid`)%>% summarize(count=n())
+quiz_data %>% group_by(`Course_Number`,`Cours_Level`,`Course_Type`,`userid`)%>% summarize(count=n())
+```
+
+
+
+```{r}
+b <- joined_data_quiz %>% group_by(`Event name`)%>% summarize(count=n())
+```
+
+As we can see from the plots and as the count of the Events names shows us, Conducting Quizzes 
+
+By the first plot, we may infer that as the quiz attempt is started, the student started search in the course module to find the material for the quiz.
+
+As the number of times the Quiz attempt summary has been views is half the number of quizzes submitted, it appears only half of the students tend to go back to learn from the quiz.(?/)
+
+
+By Average, we can say students review the quiz twice after it has been submitted and it is an indication of the effectiveness of the conduction of them.
+
+The difference in the frequency of the Quiz attempt viewed and quiz attempt submitted, the latter one being submitting the quiz before the time is up, shows that the most students stay in the quiz page till the last moment. It might be an indication of the improper quiz time.
+
+There is unusual activity count in the different Event names, as quiz attempt started has very low frequency for its items, that might be because of not using unique name for that action during the process of logging the activities (The items might be needed to be saved under the name of quiz attempt viewed).
+
+
+Since we do not have the grades for the quizzes we are interested to gauge if the student participated in the quiz., i.e. submitted the quiz attempt. 
+
+**Participation in quizzes**
+```{r, fig.width=25}
+joined_data[joined_data$`Event name`=="Quiz attempt submitted",] %>% group_by(userid) %>% summarise(count=n()) %>%
+  ggplot(aes(x=userid, y=count)) + 
+  geom_bar(stat="identity",fill = "#b83b5e", color = "#7b113a", size = 1) + 
+  labs(x= "User ID", y = "Count", title = "Participation in quizzes")+ 
+  theme(axis.text.x=element_text(angle = 90, hjust = 0, size = 10))+
+    geom_text(aes(label=count), vjust=-1)+
+  theme(panel.background = element_rect(fill = "#eeecda",colour = "#cccc99",size = 0.5, linetype = "solid"),
+  panel.grid.major = element_line(size = 0.5, linetype = 'solid',colour = "white"), 
+  panel.grid.minor = element_line(size = 0.25, linetype = 'solid',colour = "white"),
+  strip.background =element_rect(fill="#b83b5e" , color = "#7b113a"),
+  plot.title = element_text(vjust = 2, hjust =0.5, size = 25, face = "bold"),
+  axis.text.y=element_text( face = "bold"))
+```
+
+
+
+**Participation in quizzes by course number**
+
+
+```{r, fig.width=25}
+quiz_data %>%
+  ggplot(aes(x=userid, y=quizzes_by_user), color = Course_level) + geom_bar(stat="identity",fill = "#b83b5e", color = "#7b113a", size = 1) + 
+  labs(x= "User ID", y = "Count", title = "Participation in quizzes by Course Number and Type")+ 
+  theme(axis.text.x=element_text(angle = 90, hjust = 0, size = 10))+
+   # geom_text(aes(label=count), vjust=-1)+
+  theme(panel.background = element_rect(fill = "#eeecda",colour = "#cccc99",size = 0.5, linetype = "solid"),
+  panel.grid.major = element_line(size = 0.5, linetype = 'solid',colour = "white"), 
+  panel.grid.minor = element_line(size = 0.25, linetype = 'solid',colour = "white"),
+  strip.background =element_rect(fill="#b83b5e" , color = "#7b113a"),
+  plot.title = element_text(vjust = 2, hjust =0.5, size = 25, face = "bold"),
+  axis.text.y=element_text( face = "bold"))+ facet_wrap(`Course_Type` ~ `Course_Number`)
+```
+
+
+
+
+
+
+
+```{r}
+df <- data.frame(joined_data$Course_Number,joined_data$Course_Type,joined_data$Cours_Level)
+a <- unique(df)
+```
+
+
+```{r}
+df <- data.frame(quiz_data$Course_Number,quiz_data$Course_Type,quiz_data$Cours_Level)
+unique(df)
+```
+
+
+```{r}
+df <- data.frame(quiz_data$Course_Number,quiz_data$Course_Type,quiz_data$Cours_Level)
+unique(df)
+```
+
+
+
+# Models
+## Data Preperation
+
+
+Now we'll seperate the data ino test and train sets to build models and test their predicitive power.
+
+** Test and Train Sets for Regression Models **
+
+```{r}
+set.seed(1324)
+index <- createDataPartition(quiz_data$Grades, p=0.8, list=F)
+Train_reg <- quiz_data[index,]
+Test_reg <- quiz_data[-index,]
+```
+
+
+
+** Test and Train Sets for Classificatioin Models **
+
+```{r}
+set.seed(12)
+index <- createDataPartition(quiz_data$Status, p=0.8, list=F)
+Train_class <- quiz_data[index,]
+Test_class <- quiz_data[-index,]
+```
+
+## Linear Model
+### Model Building
+```{r}
+Zoom_Linear_model <- lm(Grades ~ quizzes_by_user, Train_reg)
+```
+
+```{r}
+summary(Zoom_Linear_model)
+```
+As the R-squared of the model shows, 0.035 being very small score, the model does not represent the variabtility of the data.
+
+### Model Testing
+
+```{r}
+predicteds <- Zoom_Linear_model %>% predict(Test_reg)
+```
+
+```{r}
+RMSE = mean((Test_reg$Grades - predicteds)^2) %>% sqrt()
+RMSE
+```
+as the range of the value in the Grade variable is 0-4, RMSE being more than 1, making up the 1/4 of the range is not an acceptable amount.
+
+
+### Model Evaluation
+Here by the summaries of the linear model we can see that the number of participation in the class is a factor in the final grade of the students. But as the R2 is a very small number in our model, it is an indication that the number of participations is not the only facotr in the student's final grade and this model does not describe the final grade properly.
+
+
+```{r}
+cor(quiz_data$Grades, quiz_data$quizzes_by_user)
+ ```
+The low correlation score also is an indication of the no important relationship between the grades and zoom attendance.
+
+

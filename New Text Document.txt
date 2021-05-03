@@ -2,10 +2,9 @@ Questions:
 1.What is the 0 row dataframes in the "Event Context" analysis.
 2.Why user-ids are so much more than Moodle_userIDs
 3.Why monday classes have so few attendences?
-
-
-
-
+4.Should we do train/test on linear regression
+5. what if the featrue is siginificant, but the model is not good
+6. can we infer based on low correlation that the variable is of no use at all?
 
 
 

@@ -99,3 +99,491 @@ ggplot(zoom_grouped, aes(x=round(as.numeric(Grades),2), y=zoom)) +
 color="#cccc99", size=2, linetype = "solid"), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 7), plot.title = element_text(vjust = 3, hjust =0.5))
 ```
 
+
+
+
+
+
+# Models
+## Data Preperation
+
+
+Now we'll seperate the data ino test and train sets to build models and test their predicitive power.
+
+** Test and Train Sets for Regression Models **
+
+```{r}
+set.seed(1324)
+index <- createDataPartition(zoom_grouped$Grades, p=0.8, list=F)
+Train_reg <- zoom_grouped[index,]
+Test_reg <- zoom_grouped[-index,]
+```
+
+
+
+** Test and Train Sets for Classificatioin Models **
+
+```{r}
+set.seed(12)
+index <- createDataPartition(zoom_grouped$Status, p=0.8, list=F)
+Train_class <- zoom_grouped[index,]
+Test_class <- zoom_grouped[-index,]
+```
+
+
+## Linear Model
+### Model Building
+```{r}
+Zoom_Linear_model <- lm(Grades ~ zoom, Train_reg)
+```
+
+```{r}
+summary(Zoom_Linear_model)
+```
+As the R-squared of the model shows, 0.1542 being very small score, the model does not represent the variabtility of the data.
+
+### Model Testing
+
+```{r}
+predicteds <- Zoom_Linear_model %>% predict(Test_reg)
+```
+
+```{r}
+RMSE = mean((Test_reg$Grades - predicteds)^2) %>% sqrt()
+```
+as the range of the value in the Grade variable is 0-4, RMSE equal to almost 1, making up the 1/4 of the range is not an acceptable amount.
+
+
+### Model Evaluation
+Here by the summaries of the linear model we can see that the number of participation in the class is a factor in the final grade of the students. But as the R2 is a very small number in our model, it is an indication that the number of participations is not the only facotr in the student's final grade and this model does not describe the final grade properly.
+
+
+```{r}
+cor(zoom_grouped$Grades, zoom_grouped$zoom)
+```
+The low correlation score also is an indication of the no important relationship between the grades and zoom attendance.
+
+## Logistic Regression Model
+### Model Building
+```{r}
+simple_logis <- glm(Status ~ 
+zoom  , Train_class, family="binomial") 
+summary(simple_logis) 
+```
+
+
+```{r}
+exp(coef(multiple))
+```
+According to the model, the the probability(????) of passing the course with 0 zoom attendance is 59% and with each zoom attendance, the odds of passing increases by `r 100 * (1 - (exp(coef(multiple)[2])))` percent.
+zoom attendance number is statistically significant predictor (the p-value is extremely small), but the amount which it affects is not very large.
+
+```{r}
+simple_model_augmented <- simple_logis %>%
+  augment(type.predict = "response") %>%
+  mutate(y_hat = .fitted)
+```
+
+```{r}
+ggplot(simple_model_augmented, aes(x = zoom, y = y_hat)) + 
+  geom_point() + geom_line() +
+  scale_y_continuous("Probability of passing the course", limits = c(0,1))
+```
+
+As it is shown in the plot above, the probability of passing the course increases with the increase of class attendance, but its effect decreases as the number of zoom attendance increases (the rate of increase decreases.)
+
+
+
+```{r}
+probabilities <- predict(multiple, newdata=Train_class, type="response")
+probabilities[1:20]
+ 
+pred <- prediction(probabilities, Train_class$Status)
+pref <- performance(pred, "tpr", "fpr")
+```
+
+** Finding the Optimal Cutoff value
+```{r}
+opt.cut = function(perf, pred){
+    cut.ind = mapply(FUN=function(x, y, p){
+        d = (x - 0)^2 + (y-1)^2
+        ind = which(d == min(d))
+        c(sensitivity = y[[ind]], specificity = 1-x[[ind]], 
+            cutoff = p[[ind]])
+    }, perf@x.values, perf@y.values, pred@cutoffs)
+}
+print(opt.cut(perf, pred))
+```
+
+```{r}
+predicted_class <- factor(ifelse(probabilities>0.6796069, "Pass", "Fail"))
+ 
+predicted_class <- relevel(predicted_class, "Pass")  
+
+
+Train_class$Status <- relevel(Train_class$Status, "Pass") 
+confusionMatrix(predicted_class, reference=Train_class$Status, positive="Pass")  
+```
+The P-value for the accuracy is very high, meaning the model occuracy is not working better than the NO Information Rate and is not a good model.
+
+The kappa score is also very low, meaning the model is not working properly for the prediction of Pass/Fail status based on zoom participation.
+
+
+### Model Testing
+
+```{r}
+probabilities <- predict(multiple, newdata=Test_class, type="response")
+probabilities[1:20]
+ 
+pred <- prediction(probabilities, Test_class$Status)
+perf <- performance(pred, "tpr", "fpr")
+```
+
+```{r}
+predicted_class <- factor(ifelse(probabilities>0.7961032, "Pass", "Fail"))
+ 
+predicted_class <- relevel(predicted_class, "Pass")  
+
+
+Test_class$Status <- relevel(Test_class$Status, "Pass") 
+confusionMatrix(predicted_class, reference=Test_class$Status, positive="Pass")  
+```
+
+```{r}
+plot(perf, colorize = T)
+```
+
+And the roc curve also proves our claim, the curve is so close to the baseline model line (x = y) and nothign near the ideal shape(close to the upper left corner)
+
+### Model Evaluation
+The model of Logistic regression between the Grade and the number of zoom attendences is not working well neither on Training, nor on the Testing set. The model is not acceptable.
+
+## Tree-Baseed Model
+
+### Simple Model
+#### Model Building
+
+```{r}
+class_tree_gini <- rpart(Status~ zoom, data = Train_class, method = "class", parms = list(split = 'gini'))
+```
+
+```{r}
+pred_class <- predict(class_tree_gini, Train_class, type="class")
+```
+
+```{r}
+ce(actual = Train_class$Status, predicted = pred_class) 
+```
+The fraction of the incorrectly classified instances is 0.1437145, about 14% which is not very low for the error. This is not the best model probably.
+
+#### Model Testing
+
+```{r}
+pred_class <- predict(class_tree_gini, Test_class, type="class")
+```
+
+```{r}
+ce(actual = Test_class$Status, predicted = pred_class) 
+```
+The classificationn error is almost the same as the CE for the train test, the model is consistent at least.
+
+
+```{r}
+confusionMatrix(pred_class, Test_class$Status, positive="Fail")
+```
+Among the models built till here, this model works the best, accuracy is 85%, with sensitivity and Specificity equal to 85% which justifies not so high kappa score 0.68:substantial kappa score.
+
+
+```{r}
+fancyRpartPlot(class_tree_gini)
+prp(class_tree_gini)
+```
+
+```{r}
+pred_prob <- predict(class_tree_gini, Test_class)
+pred_prob[1:10,]
+```
+
+```{r}
+pred_object <- prediction(pred_prob[,2], Test_class$Status)
+perf <- performance(pred_object,"tpr","fpr")
+```
+
+```{r}
+plot(perf)
+```
+
+```{r}
+performance(pred_object,"auc")@y.values
+```
+
+
+#### Model Evaluation
+The model performance is almost goodn and it's evaulation metric values are similar in test and train datasets.
+### Tree-Baseed Model using Bagging
+#### Random Forresst
+##### Model Building
+
+
+```{r}
+n <- round(nrow(Train_class) /3)
+train_new <- Train_class[1:(nrow(Train_class)/3),]
+train_new2 <- Train_class[n:n + n,]
+train_new3 <- Train_class[2*n: nrow(Train_class),]
+```
+
+```{r}
+rf_model <- randomForest(
+              Status ~ 
+              train_new$`zoom`, 
+              data=train_new,
+              importance=T
+            )
+```
+
+
+```{r}
+rf_model <- randomForest(
+              Status ~ 
+              train_new2$`zoom`, 
+              data=train_new2,
+              importance=T
+            )
+```
+
+```{r}
+rf_model <- randomForest(
+              Status ~ 
+              train_new3$`zoom`, 
+              data=train_new3,
+              importance=T
+            )
+```
+
+
+##### Model Testing
+
+```{r}
+Na_nums <- as.data.frame(colSums(is.na(Test_class)))
+Na_nums
+```
+
+
+```{r}
+Test_class <- na.omit(Test_class)
+```
+
+
+```{r}
+probabilities <- predict(rf_model, Train_class, type ="prob")
+
+```
+
+```{r}
+probabilities <- predict(rf_model, Test_class$Status, type ="prob")
+```
+
+
+```{r}
+p_test <- prediction(probabilities[,2], Test_class$Status)
+perf <- performance(p_test, "tpr", "fpr")
+plot(perf)
+```
+
+
+##### Model Evaluation
+
+
+## Regression Tree Model
+### Model Building
+```{r}
+reg_tree <- rpart(Grades ~ zoom, data=Train_reg, method = "anova")
+fancyRpartPlot(reg_tree)
+```
+
+
+
+### Model Testing
+```{r}
+predicted_y <- predict(reg_tree, newdata = Test_reg)
+```
+
+```{r}
+# from Metrics package
+
+rmse(actual = Test_reg$Grades, predicted = predicted_y)
+```
+The RMSE for this model compared to the actual data range (0-4) is great enough, but compared to linear regression model above, performs sllightly better.
+
+```{r}
+prune_control <- rpart.control(maxdepth = 20, minsplit = 50)
+
+prepruned_reg_tree <- rpart(Grades ~ zoom, data=Train_reg,  method = "anova", control = prune_control)
+
+prp(prepruned_reg_tree, extra = 1)
+```
+```{r}
+predicted_y <- predict(prepruned_reg_tree, newdata = Test_reg)
+```
+
+```{r}
+# from Metrics package
+
+rmse(actual = Test_reg$Grades, predicted = predicted_y)
+```
+
+```{r}
+print(reg_tree$cptable)
+```
+
+# Retrieve optimal cp value based on cross-validated error
+
+```{r}
+optimal_index <- which.min(reg_tree$cptable[, "xerror"])
+cp_optimal <- reg_tree$cptable[optimal_index, "CP"]
+```
+
+Once you have the optimal value, you can tune (or "trim") the model using the prune() function. The prune() function returns the optimized model.
+
+```{r}
+reg_tree_opt <- prune(tree = reg_tree, cp = cp_optimal)
+```
+
+```{r}
+predicted_y <- predict(reg_tree_opt, newdata = Test_reg)
+```
+
+```{r}
+# from Metrics package
+
+rmse(actual = Test_reg$Grades, predicted = predicted_y)
+```
+
+for()
+```{r}
+mins <- c(50, 60, 70, 80, 100)
+maxd <- c(10, 15, 20, 25, 30)
+
+
+df <- data.frame(Doubles=double(),
+                 Ints=integer(),
+                 Factors=factor(),
+                 Logicals=logical(),
+                 Characters=character(),
+                 stringsAsFactors=FALSE)
+
+
+Best_tree <- data.frame(min_split = double(),
+                        max_depth = integer(),
+                        RMSE = double() )
+
+for(minsp in mins){
+  for(maxdep in maxd){
+    prune_control <- rpart.control(maxdepth = maxdep, minsplit = minsp, cp = cp_optimal)
+    prepruned_reg_tree <- rpart(Grades ~ zoom, data=Train_reg,  method = "anova", control = prune_control)
+    predicted_y <- predict(prepruned_reg_tree, newdata = Test_reg)
+    rmse <- rmse(actual = Test_reg$Grades, predicted = predicted_y)
+    Best_tree <- rbind(minsp,maxd,rmse)
+  }
+}
+
+rmse <- 0
+for(minsp in mins){
+  for(maxdep in maxd){
+    print(minsp)
+    print(maxdep)
+    Best_tree <- rbind(minsp,maxd,rmse)
+  }
+}
+
+for(minsp in mins){
+  print(minsp)
+}
+
+Best_tree
+```
+
+
+## kNN Model
+### Model Building
+```{r}
+set.seed(123)
+
+knn_valid <-train(
+  Status~ Train_class$zoom,
+  data=Train_class, 
+  method="knn", 
+  #trControl=trainControl(method="cv", number=10),
+  preProcess = c("center","scale")
+  #tuneLength=10
+  )
+```
+
+```{r}
+set.seed(123)
+
+knn_valid <-train(
+  Status~ Test_class$zoom,
+  data=zoom_grouped_pass_status, 
+  method="knn", 
+  trControl=trainControl(method="cv", number=10),
+  preProcess = c("center","scale")
+  #tuneLength=10
+  )
+```
+
+
+
+
+
+
+```{r}
+knn_class_probs <- knn(Train_class[1:40000,16], Test_class[1:40000,16], cl=Train_class[1:40000,]$Status, k=1, prob = T)
+```
+
+### Model Testing
+
+### Model Evaluation
+
+
+## kNN Regression Model
+### Model Building
+
+### Model Testing
+
+### Model Evaluation
+
+
+## Clustering Model
+### Model Building
+
+### Model Testing
+
+### Model Evaluation
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

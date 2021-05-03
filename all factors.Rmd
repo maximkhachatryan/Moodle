@@ -1,0 +1,64 @@
+---
+title: "Different Factors"
+author: "Celine"
+date: "May 3, 2021"
+output: pdf_document
+---
+
+
+
+```{r}
+colnames(joined_data)
+ncol(joined_data)
+```
+
+
+
+```{r}
+joined_data <- joined_data %>% group_by(userid) %>% mutate(zoom=as.numeric(n()))
+colnames(joined_data)
+ncol(joined_data)
+```
+
+```{r}
+joined_data <- joined_data[joined_data$`Event name`=="Quiz attempt submitted",] %>% group_by(userid) %>% mutate(quizzes_by_user=n())
+colnames(joined_data)
+ncol(joined_data)
+```
+
+
+```{r}
+joined_data <- joined_data[joined_data$`Event name`=="A submission has been submitted.",] %>% group_by(userid) %>% mutate(assignments_by_user=n())
+colnames(joined_data)
+ncol(joined_data)
+```
+
+
+
+```{r}
+joined_data <- joined_data %>% group_by(userid) %>% mutate(files=as.numeric(n()))
+colnames(joined_data)
+ncol(joined_data)
+```
+
+
+```{r}
+joined_data <- joined_data %>% group_by(userid) %>% mutate(zoom=as.numeric(n()))
+joined_data <- joined_data[joined_data$`Event name`=="Quiz attempt submitted",] %>% group_by(userid) %>% mutate(quizzes_by_user=n())
+joined_data <- joined_data[joined_data$`Event name`=="A submission has been submitted.",] %>% group_by(userid) %>% mutate(assignments_by_user=n())
+joined_data <- joined_data %>% group_by(userid) %>% mutate(files=as.numeric(n()))
+
+```
+
+
+```{r}
+correlations <- cor(joined_data[,c(19:23)])
+```
+
+
+
+
+
+
+
+
